@@ -42,7 +42,8 @@ public class MapWriterDataProvider implements IMwDataProvider {
 
 			// outline
 			Render.setColour(0xff << 24 | color);
-			Render.drawRectBorder(fnw.x, fnw.y, fse.x - fnw.x, fse.y - fnw.y, 1);
+			// border is normally drawn outside box, we draw it inside box
+			Render.drawRectBorder(fnw.x + 1, fnw.y + 1, fse.x - fnw.x - 2, fse.y - fnw.y - 2, 1);
 
 			// snitch
 			ILocation sLoc = snitch.getLocation();
