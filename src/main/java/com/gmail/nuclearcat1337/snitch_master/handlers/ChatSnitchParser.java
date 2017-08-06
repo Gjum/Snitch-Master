@@ -28,7 +28,8 @@ import java.util.regex.Pattern;
  */
 public class ChatSnitchParser
 {
-    private static final Pattern jaListPattern = Pattern.compile("\\s*Location: \\[(\\S*) ?([-\\d]+) ([-\\d]+) ([-\\d]+)\\]\\sGroup: (\\S*)\\sType: (\\S*)\\sCull: ([-\\d.]*)h\\sName: (\\S*)\\s*", Pattern.MULTILINE);
+    private static final Pattern jaListPattern = Pattern.compile("\\s*Location: \\[(\\S*) ?([-\\d]+) ([-\\d]+) ([-\\d]+)\\]\\sGroup: (\\S*)\\sType: (\\S*)(\\sCull: ([-\\d.]*)h)?(\\sName: (\\S*))?\\s*", Pattern.MULTILINE);
+    private static final Pattern jaNamePattern = Pattern.compile("\\s*Location: \\[(\\S*) ?([-\\d]+) ([-\\d]+) ([-\\d]+)\\]\\sGroup: (\\S*)\\sType: (\\S*)(\\sCull: ([-\\d.]*)h)?\\sPrevious name:\\s  (\\S*)\\sName:\\s  (\\S*)\\s*", Pattern.MULTILINE);
     private static final Pattern snitchAlertPattern = Pattern.compile("\\s*\\*\\s*([^\\s]*)\\s\\b(entered snitch at|logged out in snitch at|logged in to snitch at)\\b\\s*([^\\s]*)\\s\\[([^\\s]*)\\s([-\\d]*)\\s([-\\d]*)\\s([-\\d]*)\\]");
 
     private static final String[] resetSequences = {"Unknown command", " is empty", "You do not own any snitches nearby!"};
@@ -112,6 +113,14 @@ public class ChatSnitchParser
                 return;
             }
         }
+        else if(msgText.contains("You've broken"))
+        {
+            if(tryParseBreakMessage(msg))
+            {
+                manager.saveSnitches();
+                return;
+            }
+        }
 
         //Only check for reset sequences or /jalist messages if we are updating
         if (updatingSnitchList)
@@ -163,26 +172,66 @@ public class ChatSnitchParser
         if (hover != null)
         {
             String text = stripMinecraftFormattingCodes(hover.getValue().getUnformattedComponentText());
+
             try
             {
-                String[] args = text.split("\n");
-                String[] worldArgs = args[0].split(" ");
-                String[] locationArgs = args[1].split(":")[1].split(" ");
-                String newName = args[6].trim();
+                Snitch newSnitch = null;
 
-                int x, y, z;
-                x = Integer.parseInt(locationArgs[1].substring(1));
-                y = Integer.parseInt(locationArgs[2]);
-                z = Integer.parseInt(locationArgs[3].substring(0, locationArgs[3].length() - 1));
-                String world = worldArgs.length > 1 ? worldArgs[1] : snitchMaster.getCurrentWorld();
+                Matcher jalistMatcher = jaListPattern.matcher(text);
+                if (jalistMatcher.matches()) {
+                    newSnitch = parseSnitchFromJaList(jalistMatcher, SnitchTags.FROM_TEXT);
+                } else {
+                    Matcher janameMatcher = jaNamePattern.matcher(text);
 
-                Location loc = new Location(x, y, z, world);
-                Snitch snitch = manager.getSnitches().get(loc);
+                    if (janameMatcher.matches()) {
+                        newSnitch = parseSnitchFromJaName(janameMatcher);
+                    }
+                }
 
-                if(snitch != null)
-                {
-                    manager.setSnitchName(snitch,newName);
+                if(newSnitch != null) {
+                    Snitch existentSnitch = manager.getSnitches().get(newSnitch.getLocation());
+
+                    if (existentSnitch != null) {
+                        manager.setSnitchName(existentSnitch, newSnitch.getSnitchName());
+                    } else {
+                        manager.submitSnitch(newSnitch);
+                    }
+
                     return true;
+                }
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private boolean tryParseBreakMessage(ITextComponent msg)
+    {
+        List<ITextComponent> siblings = msg.getSiblings();
+        if (siblings.size() <= 0)
+            return false;
+
+        ITextComponent hoverComponent = siblings.get(0);
+
+        HoverEvent hover = hoverComponent.getStyle().getHoverEvent();
+        if (hover != null)
+        {
+            String text = stripMinecraftFormattingCodes(hover.getValue().getUnformattedComponentText());
+
+            try
+            {
+                Matcher jalistMatcher = jaListPattern.matcher(text);
+                if (jalistMatcher.matches()) {
+                    Snitch snitch = parseSnitchFromJaList(jalistMatcher, SnitchTags.FROM_TEXT);
+                    Snitch existentSnitch = manager.getSnitches().remove(snitch.getLocation());
+
+                    if (existentSnitch != null) {
+                        snitchMaster.individualJourneyMapUpdate(snitch);
+                        return true;
+                    }
                 }
             }
             catch (Exception e)
@@ -205,41 +254,16 @@ public class ChatSnitchParser
         if (hover != null)
         {
             String text = stripMinecraftFormattingCodes(hover.getValue().getUnformattedComponentText());
-            Snitch snitch = parseSnitchFromChat(text);
-            if (snitch != null)
-            {
+
+            Matcher jalistMatcher = jaListPattern.matcher(text);
+            if (jalistMatcher.matches()) {
+                Snitch snitch = parseSnitchFromJaList(jalistMatcher, SnitchTags.FROM_TEXT);
                 manager.submitSnitch(snitch);
                 return true;
             }
         }
 
         return false;
-    }
-
-    private Snitch parseSnitchFromChat(String text)
-    {
-        try
-        {
-            String[] args = text.split("\n");
-            String[] worldArgs = args[0].split(" ");
-            String[] locationArgs = args[1].split(":")[1].split(" ");
-            String[] groupArgs = args[2].split(" ");
-
-            int x, y, z;
-            x = Integer.parseInt(locationArgs[1].substring(1));
-            y = Integer.parseInt(locationArgs[2]);
-            z = Integer.parseInt(locationArgs[3].substring(0, locationArgs[3].length() - 1));
-            String world = worldArgs.length > 1 ? worldArgs[1] : snitchMaster.getCurrentWorld();
-
-            Location loc = new Location(x, y, z, world);
-            String group = groupArgs.length > 1 ? groupArgs[1] : Snitch.DEFAULT_NAME;
-
-            return new Snitch(loc, SnitchTags.FROM_TEXT, SnitchMaster.CULL_TIME_ENABLED ? Snitch.MAX_CULL_TIME : Double.NaN, group, Snitch.DEFAULT_NAME);
-        }
-        catch (Exception e)
-        {
-            return null;
-        }
     }
 
     /**
@@ -284,7 +308,7 @@ public class ChatSnitchParser
                     Matcher matcher = jaListPattern.matcher(hoverText);
                     if (!matcher.matches())
                         continue;
-                    Snitch snitch = parseSnitchFromJaList(matcher);
+                    Snitch snitch = parseSnitchFromJaList(matcher, SnitchTags.FROM_JALIST);
 
                     if(loadedSnitches != null)
                         loadedSnitches.add(snitch);
@@ -307,7 +331,7 @@ public class ChatSnitchParser
      *
      * @param matcher the {@link Matcher} object, on which `.matches()` or similar has to be called already
      */
-    private Snitch parseSnitchFromJaList(Matcher matcher)
+    private Snitch parseSnitchFromJaList(Matcher matcher, String tag)
     {
         String worldName = matcher.group(1);
         int x = Integer.parseInt(matcher.group(2));
@@ -318,15 +342,37 @@ public class ChatSnitchParser
         String ctGroup = matcher.group(5);
         String ctType = matcher.group(6); // TODO unused at the moment, could track in each snitch
 
-        String cullTimeString = matcher.group(7);
+        String cullTimeString = matcher.group(8);
         if (cullTimeString == null || cullTimeString.isEmpty())
             cullTime = Double.NaN;
         else
             cullTime = Double.parseDouble(cullTimeString);
 
-        String name = matcher.group(8);
+        String name = matcher.group(10);
 
-        return new Snitch(new Location(x, y, z, worldName), SnitchTags.FROM_JALIST, cullTime, ctGroup, name);
+        return new Snitch(new Location(x, y, z, worldName), tag, cullTime, ctGroup, name);
+    }
+
+    private Snitch parseSnitchFromJaName(Matcher matcher)
+    {
+        String worldName = matcher.group(1);
+        int x = Integer.parseInt(matcher.group(2));
+        int y = Integer.parseInt(matcher.group(3));
+        int z = Integer.parseInt(matcher.group(4));
+        double cullTime;
+
+        String ctGroup = matcher.group(5);
+        String ctType = matcher.group(6); // TODO unused at the moment, could track in each snitch
+
+        String cullTimeString = matcher.group(8);
+        if (cullTimeString == null || cullTimeString.isEmpty())
+            cullTime = Double.NaN;
+        else
+            cullTime = Double.parseDouble(cullTimeString);
+
+        String name = matcher.group(10);
+
+        return new Snitch(new Location(x, y, z, worldName), SnitchTags.FROM_TEXT, cullTime, ctGroup, name);
     }
 
     @SubscribeEvent
@@ -337,7 +383,7 @@ public class ChatSnitchParser
             if (System.currentTimeMillis() > nextUpdate)
             {
                 //If they disconnect while updating is running we dont want the game to crash
-                if (Minecraft.getMinecraft().thePlayer != null)
+                if (Minecraft.getMinecraft().player != null)
                 {
                     if (maxJaListIndex != -1 && jaListIndex - 1 >= maxJaListIndex)
                     {
@@ -346,7 +392,7 @@ public class ChatSnitchParser
                         return;
                     }
 
-                    Minecraft.getMinecraft().thePlayer.sendChatMessage("/jalist " + jaListIndex);
+                    Minecraft.getMinecraft().player.sendChatMessage("/jalist " + jaListIndex);
                     jaListIndex++;
                     nextUpdate = System.currentTimeMillis() + (long) (waitTime * 1000);
 
@@ -385,7 +431,7 @@ public class ChatSnitchParser
                 snitchesCopy.add(snitch); //Then we add it to the copy list
         }
 
-        Minecraft.getMinecraft().thePlayer.sendChatMessage("/tps");
+        Minecraft.getMinecraft().player.sendChatMessage("/tps");
         nextUpdate = System.currentTimeMillis() + 2000;
         updatingSnitchList = true;
     }
@@ -397,7 +443,7 @@ public class ChatSnitchParser
         jaListIndex = startIndex;
         maxJaListIndex = stopIndex;
 
-        Minecraft.getMinecraft().thePlayer.sendChatMessage("/tps");
+        Minecraft.getMinecraft().player.sendChatMessage("/tps");
         nextUpdate = System.currentTimeMillis() + 2000;
         updatingSnitchList = true;
 

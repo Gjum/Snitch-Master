@@ -26,7 +26,7 @@ public class SnitchMaster
 {
     public static final String MODID = "snitchmaster";
     public static final String MODNAME = "Snitch Master";
-    public static final String MODVERSION = "1.3.0";
+    public static final String MODVERSION = "1.4.0";
     public static final String modDataFolder = "mods/Snitch-Master";
 
     private static final Minecraft mc = Minecraft.getMinecraft();
@@ -143,8 +143,8 @@ public class SnitchMaster
 
     public static void SendMessageToPlayer(String message)
     {
-        if (mc.thePlayer != null)
-            mc.thePlayer.addChatComponentMessage(new TextComponentString("[Snitch Master] " + message));
+        if (mc.player != null)
+            mc.player.sendMessage(new TextComponentString("[Snitch Master] " + message));
     }
 
     private static class ObjectParser implements Settings.ValueParser
