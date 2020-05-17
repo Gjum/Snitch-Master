@@ -23,8 +23,8 @@ public class Snitch extends LocatableObject<Snitch> {
 	/**
 	 * The cull time amount that Snitches are reset to when a player walks through them.
 	 */
-	public static final Double MAX_CULL_TIME_ENTRY = 24*180D;
-	public static final Double MAX_CULL_TIME_LOGGING = 24*360D;
+	public static final Double MAX_CULL_TIME_ENTRY = 24*21D;
+	public static final Double MAX_CULL_TIME_LOGGING = 24*21D;
 
 	private final ILocation location;
 
