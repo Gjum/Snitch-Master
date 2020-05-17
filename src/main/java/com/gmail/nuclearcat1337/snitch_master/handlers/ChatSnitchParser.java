@@ -30,7 +30,7 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 public class ChatSnitchParser {
 	private static final Pattern snitchAlertPattern = Pattern.compile(
-		"\\s*\\*\\s*([^\\s]*)\\s\\b(entered snitch at|logged out in snitch at|logged in to snitch at)\\b\\s*([^\\s]*)\\s\\[([^\\s]*)\\s([-\\d]*)\\s([-\\d]*)\\s([-\\d]*)\\]");
+		"\\s*\\*\\s*([^\\s]*)\\s\\b(entered snitch at|logged out in snitch at|logged in to snitch at)\\b\\s*([^\\s]*)\\s\\[([^\\s]*)\\s([-\\d]*)\\s([-\\d]*)\\s([-\\d]*)\\].*");
 	private static final Pattern snitchCreateMessageStartRegex = Pattern.compile(
 		"(?i)^\\s*You've created .*");
 	private static final Pattern snitchInfoMessageStartRegex = Pattern.compile(
